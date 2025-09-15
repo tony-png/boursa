@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     # API Configuration
     api_title: str = "TWS Orders API v2"
     api_description: str = "Interactive Brokers TWS Order Management API"
-    api_version: str = "0.1.0"
+    api_version: str = "1.0.1"
     docs_url: str = "/docs"
     redoc_url: str = "/redoc"
     

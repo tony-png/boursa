@@ -40,7 +40,7 @@ class Settings(BaseSettings):
     
     # API Configuration
     api_title: str = Field(default="TWS Stock Data API", description="API title")
-    api_version: str = Field(default="1.0.0", description="API version")
+    api_version: str = Field(default="1.0.1", description="API version")
     api_description: str = Field(
         default="FastAPI application for retrieving real-time stock prices from Interactive Brokers TWS",
         description="API description"

@@ -226,9 +226,20 @@ async def get_system_status():
 async def root():
     """Root endpoint."""
     return {
-        "message": "Welcome to TWS Orders API v2",
+        "name": settings.api_title,
         "version": settings.api_version,
-        "docs": settings.docs_url,
+        "build_date": "2025-09-15",
+        "description": settings.api_description,
+        "endpoints": {
+            "documentation": settings.docs_url,
+            "redoc": settings.redoc_url,
+            "health": "/health",
+            "orders": "/api/v1/orders",
+            "all_orders": "/api/v1/orders/all",
+            "positions": "/api/v1/positions",
+            "account": "/api/v1/account"
+        },
+        "github": "https://github.com/tony-png/boursa"
     }
 
 

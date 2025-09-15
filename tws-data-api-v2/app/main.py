@@ -99,9 +99,15 @@ async def root():
     return {
         "name": settings.api_title,
         "version": settings.api_version,
+        "build_date": "2025-09-15",
         "description": settings.api_description,
-        "docs": "/docs",
-        "health": "/health"
+        "endpoints": {
+            "documentation": "/docs",
+            "health": "/health",
+            "stock_price": "/stock/{symbol}",
+            "multiple_stocks": "/stocks"
+        },
+        "github": "https://github.com/tony-png/boursa"
     }
 
 
