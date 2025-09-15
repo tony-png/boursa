@@ -1,0 +1,515 @@
+=============================================================================
+                    TWS Orders API v2 - Frontend Developer Guide
+=============================================================================
+
+BASE URL: http://localhost:8001 (default development server)
+API VERSION: v2.0
+CONTENT TYPE: application/json
+
+=============================================================================
+                              QUICK START
+=============================================================================
+
+1. Start the API server: uv run python -m uvicorn app.main:app --port 8001
+2. Check if API is running: GET /health
+3. View interactive docs: http://localhost:8001/docs
+
+=============================================================================
+                           CORE ORDER ENDPOINTS
+=============================================================================
+
+📄 GET /api/v1/orders
+   Description: Get orders from current client only
+   Response: Array of TradeResponse objects
+   Use Case: View orders created by current API instance
+
+📄 GET /api/v1/orders/all
+   Description: Get ALL orders from ALL client IDs (cross-client visibility)
+   Response: Array of TradeResponse objects
+   Use Case: Monitor all orders across all trading systems
+   ⚠️  IMPORTANT: This endpoint provides complete order visibility
+
+📄 POST /api/v1/orders
+   Description: Create a new order
+   Request Body: OrderRequest (see structure below)
+   Response: TradeResponse object with order details
+   Status: 201 Created on success
+   
+   Emergency Protection: Returns 503 if emergency breaker is active
+   Rate Limited: Subject to TWS API rate limits
+
+📄 GET /api/v1/orders/{order_id}
+   Description: Get specific order by ID
+   Path Parameters: order_id (integer)
+   Response: TradeResponse object
+   Status: 404 if order not found
+
+📄 PUT /api/v1/orders/{order_id}
+   Description: Modify existing order
+   Path Parameters: order_id (integer)
+   Request Body: OrderModifyRequest (see structure below)
+   Response: {"message": "Order {id} modified successfully"}
+   
+📄 DELETE /api/v1/orders/{order_id}
+   Description: Cancel single order
+   Path Parameters: order_id (integer)
+   Response: {"message": "Order {id} cancellation requested"}
+
+📄 DELETE /api/v1/orders/cancel-all
+   Description: Cancel ALL orders across ALL client IDs
+   Response: Result object with cancellation summary
+   ⚠️  DANGER: This cancels orders from ALL trading systems
+
+=============================================================================
+                        ACCOUNT & POSITION ENDPOINTS
+=============================================================================
+
+📄 GET /api/v1/positions
+   Description: Get all current positions
+   Response: Array of PositionResponse objects
+
+📄 GET /api/v1/account
+   Description: Get account summary information
+   Response: AccountSummaryResponse object
+
+=============================================================================
+                           SYSTEM ENDPOINTS
+=============================================================================
+
+📄 GET /health
+   Description: Health check with TWS connection status
+   Response: Comprehensive system health information
+   Use Case: Monitor API and TWS connectivity
+
+📄 GET /
+   Description: API welcome message with basic info
+   Response: Welcome message, version, and docs URL
+
+📄 GET /docs
+   Description: Interactive Swagger UI documentation
+   Use Case: API testing and exploration
+
+📄 GET /redoc
+   Description: ReDoc API documentation
+   Use Case: Clean API reference documentation
+
+=============================================================================
+                          DEBUG & MONITORING
+=============================================================================
+
+📄 GET /debug/config
+   Description: Get current API configuration
+   Response: API and TWS settings, connection status
+
+📄 GET /debug/validation-rules
+   Description: Get order validation rules and supported values
+   Response: Order types, validation rules, supported values
+
+📄 GET /debug/system-status
+   Description: Comprehensive system status
+   Response: Health, connection details, account info, recent fixes
+
+=============================================================================
+                         EMERGENCY BREAKER SYSTEM
+=============================================================================
+
+📄 POST /emergency/breaker/trigger
+   Description: Trigger emergency breaker (blocks new orders)
+   Query Parameters: reason (optional string)
+   Response: Breaker activation confirmation
+   ⚠️  CRITICAL: Stops all new order creation
+
+📄 POST /emergency/breaker/reset
+   Description: Reset emergency breaker (allows orders again)
+   Response: Breaker reset confirmation
+
+📄 GET /emergency/breaker/status
+   Description: Get current emergency breaker status
+   Response: Breaker status and activation details
+
+📄 POST /emergency/breaker/test
+   Description: Test emergency breaker functionality
+   Response: Test result indicating if breaker is working
+
+=============================================================================
+                          RATE LIMITING SYSTEM
+=============================================================================
+
+📄 GET /rate-limits/status
+   Description: Get comprehensive rate limit status and metrics
+   Response: Token usage, active orders, rate limit details
+
+📄 GET /rate-limits/health
+   Description: Simplified rate limit health check
+   Response: Health status with key metrics for monitoring
+
+📄 POST /rate-limits/test
+   Description: Test rate limiting by acquiring tokens
+   Response: Test result showing token acquisition success/failure
+
+=============================================================================
+                             REQUEST MODELS
+=============================================================================
+
+📋 OrderRequest:
+{
+  "contract": {
+    "symbol": "AAPL",              // Required: Stock symbol
+    "sec_type": "STK",             // Stock, Option, Future, etc.
+    "exchange": "SMART",           // Default: SMART routing
+    "currency": "USD"              // Default: USD
+  },
+  "action": "BUY",                 // BUY or SELL
+  "order_type": "LMT",             // MKT, LMT, STP, STP LMT
+  "total_quantity": 100.0,         // Required: > 0
+  "limit_price": 150.50,           // Required for LMT and STP LMT
+  "aux_price": 149.00,             // Required for STP and STP LMT
+  "time_in_force": "DAY",          // DAY, GTC, IOC, FOK
+  "good_after_time": null,         // Optional: "YYYYMMDD HH:MM:SS"
+  "good_till_date": null,          // Optional: "YYYYMMDD HH:MM:SS"
+  "outside_rth": false,            // Allow after-hours trading
+  "hidden": false                  // Hidden order flag
+}
+
+📋 OrderModifyRequest:
+{
+  "total_quantity": 50.0,          // Optional: New quantity
+  "limit_price": 151.00,           // Optional: New limit price
+  "aux_price": 150.00,             // Optional: New stop price
+  "time_in_force": "GTC",          // Optional: New time in force
+  "outside_rth": true,             // Optional: New RTH setting
+  "hidden": false                  // Optional: New hidden setting
+}
+
+=============================================================================
+                            RESPONSE MODELS
+=============================================================================
+
+📋 TradeResponse:
+{
+  "order": {
+    "order_id": 123,               // TWS order ID
+    "client_id": 1,                // TWS client ID
+    "perm_id": 456789,             // Permanent order ID
+    "action": "BUY",               // Order action
+    "order_type": "LMT",           // Order type
+    "total_quantity": 100.0,       // Total quantity
+    "limit_price": 150.50,         // Limit price (if applicable)
+    "aux_price": 149.00,           // Stop price (if applicable)
+    "time_in_force": "DAY",        // Time in force
+    "outside_rth": false,          // RTH setting
+    "hidden": false,               // Hidden flag
+    "status": "Submitted",         // Current order status
+    "filled": 0.0,                 // Filled quantity
+    "remaining": 100.0,            // Remaining quantity
+    "avg_fill_price": 0.0,         // Average fill price
+    "contract": {
+      "symbol": "AAPL",            // Contract symbol
+      "sec_type": "STK",           // Security type
+      "exchange": "SMART",         // Exchange
+      "currency": "USD",           // Currency
+      "con_id": 265598             // Contract ID
+    }
+  },
+  "contract": { /* Same as order.contract */ },
+  "order_status": {
+    "status": "Submitted",         // Detailed status
+    "filled": 0.0,                 // Filled quantity
+    "remaining": 100.0,            // Remaining quantity
+    "avgFillPrice": 0.0,           // Average fill price
+    "whyHeld": null                // Why order is held (if any)
+  },
+  "fills": [],                     // Array of fill details
+  "log": []                        // Array of order log entries
+}
+
+📋 PositionResponse:
+{
+  "account": "DU123456",           // Account number
+  "contract": {
+    "symbol": "AAPL",              // Position symbol
+    "sec_type": "STK",             // Security type
+    "exchange": "NASDAQ",          // Exchange
+    "currency": "USD"              // Currency
+  },
+  "position": 100.0,               // Position quantity
+  "avg_cost": 148.75               // Average cost basis
+}
+
+📋 AccountSummaryResponse:
+{
+  "account_values": {
+    "DU123456": {                  // Account number
+      "NetLiquidation": {
+        "value": "50000.00",       // Account value
+        "currency": "USD"
+      },
+      "TotalCashValue": {
+        "value": "25000.00",
+        "currency": "USD"
+      }
+      // Additional account metrics...
+    }
+  },
+  "timestamp": "2024-12-07T10:30:00Z"
+}
+
+=============================================================================
+                              ORDER TYPES
+=============================================================================
+
+📊 Order Types & Required Fields:
+
+MARKET (MKT):
+  - No price fields required
+  - Executes at current market price
+  - Fastest execution
+
+LIMIT (LMT):
+  - limit_price: Required
+  - Executes at specified price or better
+  - Price protection
+
+STOP (STP):
+  - aux_price: Required (stop trigger price)
+  - Becomes market order when stop price hit
+  - Loss protection
+
+STOP LIMIT (STP LMT):
+  - limit_price: Required
+  - aux_price: Required (stop trigger price)
+  - Becomes limit order when stop price hit
+  - Price and loss protection
+
+=============================================================================
+                          ORDER STATUS VALUES
+=============================================================================
+
+📈 Order Status Flow:
+PendingSubmit → PreSubmitted → Submitted → PartiallyFilled/Filled
+                                      ↓
+                                  Cancelled (if cancelled)
+
+Status Meanings:
+- PendingSubmit: Order being validated
+- PreSubmitted: Order accepted, waiting for market
+- Submitted: Order working in market
+- PartiallyFilled: Some shares executed
+- Filled: Order completely executed
+- Cancelled: Order cancelled
+- Inactive: Order not active
+
+=============================================================================
+                            ERROR HANDLING
+=============================================================================
+
+📛 HTTP Status Codes:
+- 200: Success
+- 201: Created (new order)
+- 400: Bad Request (validation error)
+- 404: Not Found (order not found)
+- 429: Too Many Requests (rate limited)
+- 503: Service Unavailable (TWS disconnected or emergency breaker)
+- 500: Internal Server Error
+
+📛 Error Response Format:
+{
+  "error": true,
+  "correlation_id": "abc12345",      // For tracking requests
+  "timestamp": "2024-12-07T10:30:00Z",
+  "error_type": "ValidationError",
+  "message": "Limit price is required for LMT orders",
+  "suggestions": [                   // Actionable suggestions
+    "Verify symbol is correct and exists",
+    "Check security type is valid for the symbol"
+  ],
+  "debug_info": {                    // Additional debug information
+    "tws_connected": true,
+    "original_error": "Contract validation failed"
+  }
+}
+
+=============================================================================
+                      FRONTEND IMPLEMENTATION TIPS
+=============================================================================
+
+🎯 Best Practices:
+
+1. ORDER CREATION:
+   - Always validate order type requirements client-side
+   - Use limit orders for price protection
+   - Implement confirmation dialogs for market orders
+   - Handle emergency breaker 503 responses gracefully
+
+2. ORDER MONITORING:
+   - Poll /api/v1/orders/all for complete visibility
+   - Use correlation_id from errors for support requests
+   - Display order status with clear user-friendly messages
+   - Show both filled and remaining quantities
+
+3. ERROR HANDLING:
+   - Parse error.suggestions[] for user-friendly help
+   - Show correlation_id in error dialogs for support
+   - Handle 503 errors with retry logic
+   - Display rate limiting with user feedback
+
+4. REAL-TIME UPDATES:
+   - Implement polling for order status updates
+   - Use /health endpoint for connection monitoring
+   - Cache position data with reasonable refresh intervals
+
+5. SAFETY FEATURES:
+   - Implement order confirmation workflows
+   - Show emergency breaker status in UI
+   - Provide cancel-all functionality with warnings
+   - Display rate limit status to prevent failures
+
+=============================================================================
+                         COMMON INTEGRATION PATTERNS
+=============================================================================
+
+🔧 JavaScript/TypeScript Examples:
+
+// Create Order with Error Handling
+async function createOrder(orderData) {
+  try {
+    const response = await fetch('/api/v1/orders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(orderData)
+    });
+    
+    if (response.status === 503) {
+      // Emergency breaker or TWS disconnected
+      const error = await response.json();
+      showEmergencyMessage(error.detail.message);
+      return null;
+    }
+    
+    if (!response.ok) {
+      const error = await response.json();
+      showValidationErrors(error.detail.suggestions || []);
+      console.log('Correlation ID:', error.detail.correlation_id);
+      return null;
+    }
+    
+    return await response.json();
+  } catch (error) {
+    showNetworkError(error.message);
+    return null;
+  }
+}
+
+// Monitor Orders with Polling
+async function pollOrderUpdates() {
+  const orders = await fetch('/api/v1/orders/all').then(r => r.json());
+  updateOrdersUI(orders);
+  
+  // Poll every 2 seconds for updates
+  setTimeout(pollOrderUpdates, 2000);
+}
+
+// Check System Health
+async function checkSystemHealth() {
+  const health = await fetch('/health').then(r => r.json());
+  
+  updateConnectionStatus(health.tws_connected);
+  updateEmergencyBreakerStatus(health.emergency_breaker.active);
+  
+  if (health.status === 'degraded') {
+    showWarningMessage('System running in degraded mode');
+  }
+}
+
+=============================================================================
+                        PRODUCTION CONSIDERATIONS
+=============================================================================
+
+🏗️ Deployment Notes:
+
+1. ENVIRONMENT SETUP:
+   - Use environment variables for configuration
+   - Set CLIENT_ID=0 for monitoring instances
+   - Configure TWS_PORT (7497 for paper, 7496 for live)
+   - Enable HTTPS in production
+
+2. MONITORING:
+   - Implement health check monitoring (/health)
+   - Monitor rate limit status (/rate-limits/health)
+   - Alert on emergency breaker activation
+   - Log correlation IDs for error tracking
+
+3. SECURITY:
+   - Implement authentication/authorization
+   - Rate limit API endpoints
+   - Validate all inputs server-side
+   - Use CORS appropriately
+
+4. PERFORMANCE:
+   - Cache position data appropriately
+   - Implement WebSocket for real-time updates (future)
+   - Use connection pooling for high-volume scenarios
+   - Monitor TWS API rate limits
+
+=============================================================================
+                               TROUBLESHOOTING
+=============================================================================
+
+🔧 Common Issues & Solutions:
+
+PROBLEM: "TWS connection error"
+SOLUTION: 
+  - Check TWS/IB Gateway is running
+  - Verify port configuration (7497/7496)
+  - Check firewall settings
+  - Review TWS API settings
+
+PROBLEM: "Order validation failed"
+SOLUTION:
+  - Check required price fields for order type
+  - Verify symbol exists and is tradeable
+  - Ensure quantity > 0
+  - Check market hours for outside_rth setting
+
+PROBLEM: "Rate limit exceeded" (429)
+SOLUTION:
+  - Implement exponential backoff retry
+  - Check /rate-limits/status for current usage
+  - Reduce order submission frequency
+  - Consider order batching strategies
+
+PROBLEM: "Emergency breaker active" (503)
+SOLUTION:
+  - Check /emergency/breaker/status
+  - Contact system administrator
+  - Review system alerts/logs
+  - Wait for breaker reset
+
+=============================================================================
+                              SUPPORT & DOCS
+=============================================================================
+
+📚 Additional Resources:
+
+- Interactive API Docs: http://localhost:8001/docs
+- ReDoc Documentation: http://localhost:8001/redoc
+- Health Check: http://localhost:8001/health
+- System Status: http://localhost:8001/debug/system-status
+
+For technical support, include:
+- Correlation ID from error responses
+- Timestamp of the issue
+- Request/response data
+- System health status
+
+=============================================================================
+                                  END
+=============================================================================
+
+This documentation covers all endpoints and provides practical guidance for
+frontend developers integrating with the TWS Orders API v2. The API provides
+comprehensive order management, multi-client support, emergency safety systems,
+and detailed error handling to ensure reliable trading operations.
+
+Last Updated: December 2024
+API Version: v2.0

@@ -1,0 +1,70 @@
+version: '3.8'
+
+services:
+  tws-data-api:
+    build:
+      context: ./tws-data-api-v2
+      dockerfile: Dockerfile
+    container_name: tws-data-api
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./tws-data-api-v2/.env
+    environment:
+      # Override to ensure container networking works
+      - API_HOST=0.0.0.0
+      - API_PORT=8000
+      # Use host.docker.internal to connect to TWS on host machine
+      - TWS_HOST=host.docker.internal
+    volumes:
+      # Mount .env file for runtime configuration changes
+      - ./tws-data-api-v2/.env:/app/.env:ro
+    restart: unless-stopped
+    networks:
+      - tws-network
+    extra_hosts:
+      # This allows containers to connect to services on the host
+      - "host.docker.internal:host-gateway"
+    labels:
+      - "com.boursa.service=tws-data-api"
+      - "com.boursa.description=FastAPI service for TWS market data"
+
+  tws-orders-api:
+    build:
+      context: ./tws-orders-api-v2
+      dockerfile: Dockerfile
+    container_name: tws-orders-api
+    ports:
+      - "8001:8001"
+    env_file:
+      - ./tws-orders-api-v2/.env
+    environment:
+      # Override to ensure container networking works
+      - API_HOST=0.0.0.0
+      - API_PORT=8001
+      # Use host.docker.internal to connect to TWS on host machine
+      - TWS_HOST=host.docker.internal
+    volumes:
+      # Mount .env file for runtime configuration changes
+      - ./tws-orders-api-v2/.env:/app/.env:ro
+      # Mount emergency breaker file for runtime control
+      - ./tws-orders-api-v2/emergency_breaker.json:/app/emergency_breaker.json:rw
+    restart: unless-stopped
+    networks:
+      - tws-network
+    extra_hosts:
+      # This allows containers to connect to services on the host
+      - "host.docker.internal:host-gateway"
+    labels:
+      - "com.boursa.service=tws-orders-api"
+      - "com.boursa.description=FastAPI service for TWS order management"
+
+networks:
+  tws-network:
+    driver: bridge
+    name: tws-network
+
+# Optional: Add volumes for persistent data if needed
+volumes:
+  tws-data:
+    driver: local

@@ -1,0 +1,5 @@
+- fastmcp project
+- use UV to run
+- always use context7 mcp to get the latest docs
+- lib to use is ib_insync
+- use .env files, localhost:7497 to connect to TWS client.

@@ -1,0 +1,63 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.pytest_cache/
+.coverage
+*.egg-info/
+dist/
+build/
+
+# Virtual environment
+.venv/
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Git
+.git/
+.gitignore
+
+# Documentation (keep README.md for build)
+# *.md - commented out to include README.md
+docs/
+# README.md - needed for build
+CLAUDE.md
+api_documentation.txt
+
+# Environment files (we'll mount these separately)
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+logs/
+server.log
+
+# Testing
+tests/
+test_*.py
+pytest.ini
+.pytest_cache/
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+
+# Claude specific
+.claude/
+
+# Docker files themselves
+Dockerfile
+docker-compose*.yml
+.dockerignore
