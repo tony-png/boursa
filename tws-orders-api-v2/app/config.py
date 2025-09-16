@@ -27,6 +27,10 @@ class Settings(BaseSettings):
     connection_timeout: int = 10
     reconnect_attempts: int = 3
     reconnect_delay: int = 5
+
+    # Order Acknowledgment Settings
+    order_acknowledgment_timeout: float = 2.0  # seconds to wait for TWS order acknowledgment
+    order_cancellation_timeout: float = 0.5    # seconds to wait for cancellation confirmation
     
     # Rate Limiting Settings
     enable_rate_limiting: bool = True

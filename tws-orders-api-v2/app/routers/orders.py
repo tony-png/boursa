@@ -233,6 +233,39 @@ async def create_order(order_request: OrderRequest, request: Request):
         return convert_trade_to_response(trade)
         
     except ConnectionError as e:
+        error_message = str(e)
+
+        # Handle timeout scenarios where cancellation failed or was unclear
+        if "manual verification required" in error_message:
+            error_context = get_enhanced_error_context(
+                request, correlation_id, e,
+                {
+                    "timeout_scenario": "cancellation_failed_or_unclear",
+                    "order_details": {
+                        "symbol": order_request.contract.symbol,
+                        "order_type": order_request.order_type,
+                        "quantity": order_request.total_quantity
+                    },
+                    "tws_connected": ib_service.is_connected()
+                }
+            )
+            log_error_with_context(e, error_context, "critical")
+
+            raise create_enhanced_http_exception(
+                status_code=status.HTTP_408_REQUEST_TIMEOUT,
+                detail=error_message,
+                correlation_id=correlation_id,
+                error_type="OrderTimeoutCancellationFailed",
+                suggestions=[
+                    "MANUAL ACTION REQUIRED: Check TWS for pending orders",
+                    "Verify order status in TWS before retrying",
+                    "Contact support if order status is unclear",
+                    "Do NOT retry until order status is confirmed"
+                ],
+                debug_info={"manual_verification_required": True, "tws_connected": ib_service.is_connected()}
+            )
+
+        # Handle regular connection errors
         error_context = get_enhanced_error_context(
             request, correlation_id, e,
             {
@@ -245,7 +278,7 @@ async def create_order(order_request: OrderRequest, request: Request):
             }
         )
         log_error_with_context(e, error_context)
-        
+
         raise create_enhanced_http_exception(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=f"TWS connection error: {str(e)}",
@@ -261,6 +294,38 @@ async def create_order(order_request: OrderRequest, request: Request):
         )
         
     except ValueError as e:
+        error_message = str(e)
+
+        # Handle timeout with auto-cancellation
+        if "automatically cancelled" in error_message:
+            error_context = get_enhanced_error_context(
+                request, correlation_id, e,
+                {
+                    "timeout_scenario": "auto_cancelled",
+                    "order_details": {
+                        "symbol": order_request.contract.symbol,
+                        "order_type": order_request.order_type,
+                        "quantity": order_request.total_quantity
+                    }
+                }
+            )
+            log_error_with_context(e, error_context, "warning")
+
+            raise create_enhanced_http_exception(
+                status_code=status.HTTP_408_REQUEST_TIMEOUT,
+                detail=error_message,
+                correlation_id=correlation_id,
+                error_type="OrderTimeoutCancelled",
+                suggestions=[
+                    "Retry the order - it was safely cancelled",
+                    "Check TWS connection stability",
+                    "Consider checking network connectivity",
+                    "The order was not executed and is safe to retry"
+                ],
+                debug_info={"timeout_auto_cancelled": True}
+            )
+
+        # Handle regular validation errors (rejections, invalid data, etc.)
         error_context = get_enhanced_error_context(
             request, correlation_id, e,
             {
@@ -273,7 +338,7 @@ async def create_order(order_request: OrderRequest, request: Request):
             }
         )
         log_error_with_context(e, error_context)
-        
+
         raise create_enhanced_http_exception(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Invalid contract or order data: {str(e)}",

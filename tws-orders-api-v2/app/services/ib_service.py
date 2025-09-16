@@ -146,9 +146,9 @@ class IBService:
         return qualified_contracts[0]
     
     async def place_order(self, contract: Contract, order: Order) -> Trade:
-        """Place an order and return the trade object."""
+        """Place an order and wait for TWS acknowledgment."""
         await self.ensure_connected()
-        
+
         # Apply rate limiting for order placement
         if self.rate_limiter:
             # Check both message rate limit and active orders per contract
@@ -165,12 +165,61 @@ class IBService:
                     f"Active orders for {contract.symbol} {order.action}: "
                     f"{status['active_orders']['per_contract'].get(f'{contract.symbol}:{order.action}:default', 0)}"
                 )
-        
+
         try:
             trade = self.ib.placeOrder(contract, order)
-            logger.info(f"Order placed: {order.orderId} for {contract.symbol} {order.action} "
-                       f"(Qty: {order.totalQuantity})")
+
+            # Wait for TWS to acknowledge order (configurable timeout)
+            timeout_seconds = settings.order_acknowledgment_timeout
+            max_attempts = int(timeout_seconds / 0.1)  # 0.1s per attempt
+            for attempt in range(max_attempts):
+                await asyncio.sleep(0.1)
+
+                # Check if order has been acknowledged by TWS
+                # Order is acknowledged when status moves past 'PendingSubmit' or empty string
+                if trade.orderStatus and trade.orderStatus.status not in ['PendingSubmit', '']:
+                    break
+            else:
+                # Timeout - TWS didn't acknowledge in time, auto-cancel to prevent zombie orders
+                timeout_seconds = max_attempts * 0.1
+                current_status = trade.orderStatus.status if trade.orderStatus else 'Unknown'
+
+                logger.warning(f"Order {trade.order.orderId} timed out after {timeout_seconds}s (status: {current_status}) - auto-canceling to prevent zombie execution")
+
+                # Attempt to cancel the order immediately
+                try:
+                    cancelled_trade = self.ib.cancelOrder(trade.order)
+
+                    # Wait for cancellation to process (configurable timeout)
+                    await asyncio.sleep(settings.order_cancellation_timeout)
+
+                    # Check if cancellation succeeded
+                    if trade.orderStatus and trade.orderStatus.status == 'Cancelled':
+                        logger.info(f"Order {trade.order.orderId} successfully auto-cancelled after timeout")
+                        raise ValueError(f"Order timed out after {timeout_seconds} seconds and was automatically cancelled to prevent unconfirmed execution")
+                    else:
+                        # Cancellation may have failed or is still processing
+                        final_status = trade.orderStatus.status if trade.orderStatus else 'Unknown'
+                        logger.error(f"Order {trade.order.orderId} timeout cancellation unclear - final status: {final_status}")
+                        raise ConnectionError(f"Order timed out and cancellation status unclear (status: {final_status}) - manual verification required")
+
+                except Exception as cancel_error:
+                    logger.error(f"Failed to cancel timed-out order {trade.order.orderId}: {cancel_error}")
+                    raise ConnectionError(f"Order timed out after {timeout_seconds} seconds and auto-cancellation failed: {cancel_error} - manual verification required")
+
+            # Verify order was accepted
+            if not trade.order.orderId:
+                raise ValueError("TWS did not assign an order ID")
+
+            # Check if order was rejected
+            if trade.orderStatus and trade.orderStatus.status == 'Cancelled':
+                reason = getattr(trade.orderStatus, 'whyHeld', 'Unknown reason')
+                raise ValueError(f"Order rejected by TWS: {reason}")
+
+            logger.info(f"Order placed and acknowledged: {trade.order.orderId} for {contract.symbol} "
+                       f"{order.action} (Qty: {order.totalQuantity}) - Status: {trade.orderStatus.status}")
             return trade
+
         except Exception as e:
             # If order placement failed, remove from rate limiter tracking
             if self.rate_limiter:
